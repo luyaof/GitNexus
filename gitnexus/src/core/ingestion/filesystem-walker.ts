@@ -30,9 +30,13 @@ const MAX_FILE_SIZE = 512 * 1024;
  */
 export const walkRepositoryPaths = async (
   repoPath: string,
-  onProgress?: (current: number, total: number, filePath: string) => void
+  onProgress?: (current: number, total: number, filePath: string) => void,
+  scope?: string[]
 ): Promise<ScannedFile[]> => {
-  const files = await glob('**/*', {
+  const patterns = scope?.length
+    ? scope.map(s => s.replace(/\/$/, '') + '/**/*')
+    : ['**/*'];
+  const files = await glob(patterns, {
     cwd: repoPath,
     nodir: true,
     dot: false,

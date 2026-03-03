@@ -36,11 +36,15 @@ const GITNEXUS_END_MARKER = '<!-- gitnexus:end -->';
  * - One-line quick start (read context resource) gives agents an entry point
  * - Tools/Resources sections are labeled "Reference" — agents treat them as lookup, not workflow
  */
-function generateGitNexusContent(projectName: string, stats: RepoStats): string {
+function generateGitNexusContent(projectName: string, stats: RepoStats, scope?: string[]): string {
+  const scopeLine = scope?.length
+    ? `\n**Scope**: ${scope.join(', ')} (partial index)\n`
+    : '';
   return `${GITNEXUS_START_MARKER}
 # GitNexus MCP
 
 This project is indexed by GitNexus as **${projectName}** (${stats.nodes || 0} symbols, ${stats.edges || 0} relationships, ${stats.processes || 0} execution flows).
+${scopeLine}
 
 ## Always Start Here
 
@@ -198,9 +202,10 @@ export async function generateAIContextFiles(
   repoPath: string,
   _storagePath: string,
   projectName: string,
-  stats: RepoStats
+  stats: RepoStats,
+  scope?: string[]
 ): Promise<{ files: string[] }> {
-  const content = generateGitNexusContent(projectName, stats);
+  const content = generateGitNexusContent(projectName, stats, scope);
   const createdFiles: string[] = [];
 
   // Create AGENTS.md (standard for Cursor, Windsurf, OpenCode, Cline, etc.)

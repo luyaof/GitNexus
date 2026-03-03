@@ -27,7 +27,8 @@ const AST_CACHE_CAP = 50;
 
 export const runPipelineFromRepo = async (
   repoPath: string,
-  onProgress: (progress: PipelineProgress) => void
+  onProgress: (progress: PipelineProgress) => void,
+  options?: { scope?: string[] }
 ): Promise<PipelineResult> => {
   const graph = createKnowledgeGraph();
   const symbolTable = createSymbolTable();
@@ -56,7 +57,7 @@ export const runPipelineFromRepo = async (
         detail: filePath,
         stats: { filesProcessed: current, totalFiles: total, nodesCreated: graph.nodeCount },
       });
-    });
+    }, options?.scope);
 
     const totalFiles = scannedFiles.length;
 
@@ -150,7 +151,7 @@ export const runPipelineFromRepo = async (
 
     // AST cache sized for one chunk (sequential fallback uses it for import/call/heritage)
     const maxChunkFiles = chunks.reduce((max, c) => Math.max(max, c.length), 0);
-    astCache = createASTCache(maxChunkFiles);
+    astCache = createASTCache(Math.max(1, maxChunkFiles));
 
     // Build import resolution context once — suffix index, file lists, resolve cache.
     // Reused across all chunks to avoid rebuilding O(files × path_depth) structures.
