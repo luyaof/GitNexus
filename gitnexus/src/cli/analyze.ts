@@ -45,6 +45,7 @@ function ensureHeap(): boolean {
 export interface AnalyzeOptions {
   force?: boolean;
   embeddings?: boolean;
+  scope?: string[];
 }
 
 /** Threshold: auto-skip embeddings for repos with more nodes than this */
@@ -93,11 +94,20 @@ export const analyzeCommand = async (
     return;
   }
 
+  // Normalize scope paths: resolve relative to cwd, then make relative to repo root
+  if (options?.scope?.length) {
+    options.scope = options.scope.map(s => {
+      const abs = path.resolve(process.cwd(), s);
+      return path.relative(repoPath, abs).replace(/\\/g, '/');
+    });
+  }
+
   const { storagePath, kuzuPath } = getStoragePaths(repoPath);
   const currentCommit = getCurrentCommit(repoPath);
   const existingMeta = await loadMeta(storagePath);
 
-  if (existingMeta && !options?.force && existingMeta.lastCommit === currentCommit) {
+  const scopeChanged = JSON.stringify(existingMeta?.scope?.slice().sort()) !== JSON.stringify(options?.scope?.slice().sort());
+  if (existingMeta && !options?.force && existingMeta.lastCommit === currentCommit && !scopeChanged) {
     console.log('  Already up to date\n');
     return;
   }
@@ -188,7 +198,7 @@ export const analyzeCommand = async (
     const phaseLabel = PHASE_LABELS[progress.phase] || progress.phase;
     const scaled = Math.round(progress.percent * 0.6);
     updateBar(scaled, phaseLabel);
-  });
+  }, { scope: options?.scope });
 
   // ── Phase 2: KuzuDB (60–85%) ──────────────────────────────────────
   updateBar(60, 'Loading into KuzuDB...');
@@ -280,6 +290,7 @@ export const analyzeCommand = async (
     repoPath,
     lastCommit: currentCommit,
     indexedAt: new Date().toISOString(),
+    ...(options?.scope?.length ? { scope: options.scope } : {}),
     stats: {
       files: pipelineResult.totalFileCount,
       nodes: stats.nodes,
@@ -310,7 +321,7 @@ export const analyzeCommand = async (
     communities: pipelineResult.communityResult?.stats.totalCommunities,
     clusters: aggregatedClusterCount,
     processes: pipelineResult.processResult?.stats.totalProcesses,
-  });
+  }, options?.scope);
 
   await closeKuzu();
   // Note: we intentionally do NOT call disposeEmbedder() here.
@@ -335,6 +346,9 @@ export const analyzeCommand = async (
   console.log(`  ${stats.nodes.toLocaleString()} nodes | ${stats.edges.toLocaleString()} edges | ${pipelineResult.communityResult?.stats.totalCommunities || 0} clusters | ${pipelineResult.processResult?.stats.totalProcesses || 0} flows`);
   console.log(`  KuzuDB ${kuzuTime}s | FTS ${ftsTime}s | Embeddings ${embeddingSkipped ? embeddingSkipReason : embeddingTime + 's'}`);
   console.log(`  ${repoPath}`);
+  if (options?.scope?.length) {
+    console.log(`  Scope: ${options.scope.join(', ')} (partial index)`);
+  }
 
   if (aiContext.files.length > 0) {
     console.log(`  Context: ${aiContext.files.join(', ')}`);
